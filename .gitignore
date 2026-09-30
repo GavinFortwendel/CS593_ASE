@@ -1,0 +1,14 @@
+# Node & Python dependencies
+node_modules/
+__pycache__/
+venv/
+
+# Environment variables (API Keys)
+.env
+
+# Local SQLite database
+*.sqlite
+*.db
+
+# Claude Code internal files
+.claude/
