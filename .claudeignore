@@ -1,0 +1,25 @@
+# Node & Frontend dependencies
+node_modules/
+dist/
+build/
+.next/
+
+# Python & Backend dependencies
+__pycache__/
+venv/
+env/
+.pytest_cache/
+
+# Local databases (prevents Claude from reading binary/SQL data)
+*.sqlite
+*.db
+
+# Environment variables & secrets
+.env
+.env.local
+
+# Git internals
+.git/
+
+# PDFs (prevents Claude from trying to read raw PDF binary data)
+*.pdf
