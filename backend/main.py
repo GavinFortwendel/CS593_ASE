@@ -1,9 +1,19 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import search
+from backend.database import init_db
+from backend.routers import library, search
 
-app = FastAPI(title="AI Research Assistant")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()  # create SQLite tables on first run
+    yield
+
+
+app = FastAPI(title="AI Research Assistant", lifespan=lifespan)
 
 # Allow the Vite/React dev server to call the API.
 app.add_middleware(
@@ -14,6 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(search.router, prefix="/api")
+app.include_router(library.router, prefix="/api")
 
 
 @app.get("/api/health")

@@ -10,6 +10,11 @@ export interface Paper {
   pdf_url: string | null
 }
 
+export interface LibraryPaper extends Paper {
+  source: string // 'semantic_scholar' | 'upload'
+  saved_at: string // ISO 8601 UTC timestamp
+}
+
 export interface SearchResponse {
   query: string
   total: number

@@ -1,5 +1,5 @@
 import { ApiError } from '../api'
-import type { SearchResponse } from '../types'
+import type { Paper, SearchResponse } from '../types'
 import PaperCard from './PaperCard'
 
 export type SearchStatus = 'idle' | 'loading' | 'success' | 'error'
@@ -10,6 +10,9 @@ interface Props {
   data: SearchResponse | null
   error: unknown
   onRetry: () => void
+  savedIds: Set<string>
+  onSave: (paper: Paper) => Promise<void>
+  onRemove: (paperId: string) => Promise<void>
 }
 
 function friendlyError(error: unknown): { title: string; detail: string } {
@@ -30,7 +33,7 @@ function friendlyError(error: unknown): { title: string; detail: string } {
   return { title: 'Something went wrong', detail: String(error) }
 }
 
-function SkeletonCard() {
+export function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-xl border border-slate-200 bg-white p-5">
       <div className="h-5 w-3/4 rounded bg-slate-200" />
@@ -44,7 +47,16 @@ function SkeletonCard() {
   )
 }
 
-export default function Results({ status, query, data, error, onRetry }: Props) {
+export default function Results({
+  status,
+  query,
+  data,
+  error,
+  onRetry,
+  savedIds,
+  onSave,
+  onRemove,
+}: Props) {
   if (status === 'idle') {
     return (
       <p className="mt-12 text-center text-slate-500">
@@ -89,7 +101,13 @@ export default function Results({ status, query, data, error, onRetry }: Props) 
       </p>
       <div className="space-y-4">
         {data.papers.map((paper) => (
-          <PaperCard key={paper.paper_id} paper={paper} />
+          <PaperCard
+            key={paper.paper_id}
+            paper={paper}
+            saved={savedIds.has(paper.paper_id)}
+            onSave={() => onSave(paper)}
+            onRemove={() => onRemove(paper.paper_id)}
+          />
         ))}
       </div>
     </section>

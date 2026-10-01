@@ -1,4 +1,4 @@
-import type { SearchResponse } from './types'
+import type { LibraryPaper, Paper, SearchResponse } from './types'
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
@@ -38,6 +38,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, 'Cannot reach the server. Is the backend running on port 8000?')
   }
   if (!res.ok) throw new ApiError(res.status, await errorMessage(res))
+  if (res.status === 204) return undefined as T // No Content (e.g. DELETE) has no JSON body
   return res.json() as Promise<T>
 }
 
@@ -47,4 +48,21 @@ export function searchPapers(
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({ q, limit: String(limit), offset: String(offset) })
   return request<SearchResponse>(`/api/search?${params}`, { signal })
+}
+
+export function listLibrary(): Promise<LibraryPaper[]> {
+  return request<LibraryPaper[]>('/api/library')
+}
+
+/** Idempotent: saving an already-saved paper returns the existing entry. */
+export function savePaper(paper: Paper): Promise<LibraryPaper> {
+  return request<LibraryPaper>('/api/library', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(paper),
+  })
+}
+
+export function removePaper(paperId: string): Promise<void> {
+  return request<void>(`/api/library/${encodeURIComponent(paperId)}`, { method: 'DELETE' })
 }

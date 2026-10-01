@@ -11,9 +11,32 @@ function formatAuthors(authors: string[]): string {
   return `${authors.slice(0, MAX_AUTHORS).join(', ')}, et al.`
 }
 
-export default function PaperCard({ paper }: { paper: Paper }) {
+interface Props {
+  paper: Paper
+  saved: boolean
+  onSave?: () => Promise<void>
+  onRemove?: () => Promise<void>
+}
+
+export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const isLong = (paper.abstract?.length ?? 0) > LONG_ABSTRACT_CHARS
+  const action = saved ? onRemove : onSave
+
+  async function handleToggleSave() {
+    if (!action) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await action()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -57,9 +80,22 @@ export default function PaperCard({ paper }: { paper: Paper }) {
         <p className="mt-3 text-sm text-slate-400 italic">No abstract available.</p>
       )}
 
-      {/* Actions row — "Save to library" will go here in a later milestone. */}
-      {paper.pdf_url && (
-        <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {action && (
+          <button
+            type="button"
+            onClick={handleToggleSave}
+            disabled={busy}
+            className={
+              saved
+                ? 'rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-red-50 hover:text-red-700 hover:ring-red-200 disabled:opacity-50'
+                : 'rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50'
+            }
+          >
+            {busy ? (saved ? 'Removing…' : 'Saving…') : saved ? 'Saved ✓ · Remove' : 'Save to Library'}
+          </button>
+        )}
+        {paper.pdf_url && (
           <a
             href={paper.pdf_url}
             target="_blank"
@@ -68,8 +104,13 @@ export default function PaperCard({ paper }: { paper: Paper }) {
           >
             Open PDF
           </a>
-        </div>
-      )}
+        )}
+        {actionError && (
+          <p role="alert" className="text-xs text-red-600">
+            {actionError}
+          </p>
+        )}
+      </div>
     </article>
   )
 }
