@@ -1,5 +1,6 @@
 fastapi[standard]
 httpx
+openai
 pypdf
 python-dotenv
 sqlalchemy>=2.0

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Paper } from '../types'
+import PaperAssistant from './PaperAssistant'
 
 const MAX_AUTHORS = 5
 // Rough threshold for when a 4-line clamp would actually hide text.
@@ -17,10 +18,13 @@ interface Props {
   saved: boolean
   onSave?: () => Promise<void>
   onRemove?: () => Promise<void>
+  // Show the "Ask AI" summary/Q&A panel toggle (library papers only).
+  showAssistant?: boolean
 }
 
-export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
+export default function PaperCard({ paper, saved, onSave, onRemove, showAssistant }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const [assistantOpen, setAssistantOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const isLong = (paper.abstract?.length ?? 0) > LONG_ABSTRACT_CHARS
@@ -29,6 +33,8 @@ export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
   const isUpload = paper.source === 'upload'
   const url = isUpload ? null : paper.url
   const pdfUrl = isUpload ? null : paper.pdf_url
+  // The LLM needs the paper's text: uploads have it, saved papers need an open-access PDF to fetch.
+  const hasText = isUpload || Boolean(paper.pdf_url)
 
   async function handleToggleSave() {
     if (!action) return
@@ -107,6 +113,18 @@ export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
             {busy ? (saved ? 'Removing…' : 'Saving…') : saved ? 'Saved ✓ · Remove' : 'Save to Library'}
           </button>
         )}
+        {showAssistant && (
+          <button
+            type="button"
+            onClick={() => setAssistantOpen((x) => !x)}
+            disabled={!hasText}
+            title={hasText ? undefined : 'No open-access PDF; upload it to use AI features'}
+            aria-expanded={assistantOpen}
+            className="rounded-md bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {assistantOpen ? 'Hide AI' : 'Ask AI ✨'}
+          </button>
+        )}
         {pdfUrl && (
           <a
             href={pdfUrl}
@@ -123,6 +141,8 @@ export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
           </p>
         )}
       </div>
+
+      {showAssistant && assistantOpen && <PaperAssistant paperId={paper.paper_id} />}
     </article>
   )
 }

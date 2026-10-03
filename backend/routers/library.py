@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
@@ -8,7 +9,10 @@ from sqlalchemy.orm import Session
 from backend.config import MAX_UPLOAD_BYTES
 from backend.database import get_db
 from backend.models import SavedPaper
-from backend.schemas import LibraryPaper, Paper
+from backend.schemas import LibraryPaper, Paper, QAResponse, QARequest, SummaryResponse
+from backend.services import llm
+from backend.services.llm import LLMError
+from backend.services.paper_text import FullTextUnavailable, ensure_full_text
 from backend.services.pdf_extract import PdfExtractionError, extract_pdf
 
 logger = logging.getLogger(__name__)
@@ -82,6 +86,43 @@ def upload_pdf(file: UploadFile = File(...), db: Session = Depends(get_db)) -> S
             "Could not process this PDF. It may be malformed or use an unsupported format.",
         ) from exc
     return record
+
+
+def _load_paper(paper_id: str, db: Session) -> tuple[SavedPaper, str]:
+    """Returns the library paper and its full text, fetching the open-access PDF if needed."""
+    record = db.get(SavedPaper, paper_id)
+    if not record:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Paper not in library")
+    try:
+        return record, ensure_full_text(record, db)
+    except FullTextUnavailable as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
+def _run_llm(fn: Callable[[], str], paper_id: str) -> str:
+    try:
+        return fn()
+    except LLMError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    except Exception as exc:
+        # Same reason as in upload_pdf: a raw 500 has no CORS headers and the browser would
+        # report it as "Cannot reach the server".
+        logger.exception("Unexpected LLM error for paper %r", paper_id)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "The AI request failed unexpectedly.") from exc
+
+
+# The LLM endpoints are sync so the blocking OpenAI and PDF-download calls run in the threadpool.
+@router.post("/{paper_id}/summarize", response_model=SummaryResponse)
+def summarize_paper(paper_id: str, db: Session = Depends(get_db)) -> SummaryResponse:
+    record, text = _load_paper(paper_id, db)
+    return SummaryResponse(summary=_run_llm(lambda: llm.summarize(record.title, text), paper_id))
+
+
+@router.post("/{paper_id}/qa", response_model=QAResponse)
+def ask_paper(paper_id: str, body: QARequest, db: Session = Depends(get_db)) -> QAResponse:
+    record, text = _load_paper(paper_id, db)
+    answer = _run_llm(lambda: llm.answer(record.title, text, body.question, body.history), paper_id)
+    return QAResponse(answer=answer)
 
 
 @router.delete("/{paper_id}", status_code=status.HTTP_204_NO_CONTENT)

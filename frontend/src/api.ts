@@ -1,4 +1,11 @@
-import type { LibraryPaper, Paper, SearchResponse } from './types'
+import type {
+  ChatMessage,
+  LibraryPaper,
+  Paper,
+  QAResponse,
+  SearchResponse,
+  SummaryResponse,
+} from './types'
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
@@ -73,4 +80,24 @@ export function uploadPaper(file: File): Promise<LibraryPaper> {
 
 export function removePaper(paperId: string): Promise<void> {
   return request<void>(`/api/library/${encodeURIComponent(paperId)}`, { method: 'DELETE' })
+}
+
+/** LLM summary of a library paper, based on its full text. Can take 10–30 s. */
+export function summarizePaper(paperId: string): Promise<SummaryResponse> {
+  return request<SummaryResponse>(`/api/library/${encodeURIComponent(paperId)}/summarize`, {
+    method: 'POST',
+  })
+}
+
+/** Asks a question about a library paper. `history` is the conversation so far (oldest first). */
+export function askPaper(
+  paperId: string,
+  question: string,
+  history: ChatMessage[],
+): Promise<QAResponse> {
+  return request<QAResponse>(`/api/library/${encodeURIComponent(paperId)}/qa`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, history }),
+  })
 }

@@ -64,6 +64,7 @@ export default function LibraryView({ status, papers, error, onRetry, onRemove, 
             key={paper.paper_id}
             paper={paper}
             saved
+            showAssistant
             onRemove={() => onRemove(paper.paper_id)}
           />
         ))}

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Paper(BaseModel):
@@ -29,6 +30,33 @@ class LibraryPaper(Paper):
         # SQLite drops tzinfo on storage; values are written as UTC, so reattach it.
         # Without this the JSON has no "Z" and browsers would parse it as local time.
         return v if v.tzinfo else v.replace(tzinfo=UTC)
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=20_000)
+
+
+class SummaryResponse(BaseModel):
+    summary: str
+
+
+class QARequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    # Earlier turns of the conversation, kept by the frontend (chats aren't stored server-side).
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+
+    @field_validator("question")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Question must not be empty")
+        return v
+
+
+class QAResponse(BaseModel):
+    answer: str
 
 
 class SearchResponse(BaseModel):

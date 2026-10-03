@@ -21,3 +21,16 @@ export interface SearchResponse {
   offset: number
   papers: Paper[]
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface SummaryResponse {
+  summary: string
+}
+
+export interface QAResponse {
+  answer: string
+}
