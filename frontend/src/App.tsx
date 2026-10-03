@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { listLibrary, removePaper, savePaper, searchPapers } from './api'
+import { listLibrary, removePaper, savePaper, searchPapers, uploadPaper } from './api'
 import LibraryView, { type LibraryStatus } from './components/LibraryView'
 import Results, { type SearchStatus } from './components/Results'
 import SearchBar from './components/SearchBar'
@@ -80,6 +80,11 @@ function App() {
     setLibrary((prev) => [saved, ...prev.filter((p) => p.paper_id !== saved.paper_id)])
   }
 
+  async function handleUpload(file: File) {
+    const uploaded = await uploadPaper(file)
+    setLibrary((prev) => [uploaded, ...prev])
+  }
+
   async function handleRemove(paperId: string) {
     await removePaper(paperId)
     setLibrary((prev) => prev.filter((p) => p.paper_id !== paperId))
@@ -132,6 +137,7 @@ function App() {
             error={libraryError}
             onRetry={retryLibrary}
             onRemove={handleRemove}
+            onUpload={handleUpload}
           />
         )}
       </main>

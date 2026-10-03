@@ -63,6 +63,14 @@ export function savePaper(paper: Paper): Promise<LibraryPaper> {
   })
 }
 
+/** Uploads a PDF; the backend extracts its text and metadata and adds it to the library. */
+export function uploadPaper(file: File): Promise<LibraryPaper> {
+  const form = new FormData()
+  form.append('file', file)
+  // No Content-Type header: the browser sets multipart/form-data with the boundary itself.
+  return request<LibraryPaper>('/api/library/upload', { method: 'POST', body: form })
+}
+
 export function removePaper(paperId: string): Promise<void> {
   return request<void>(`/api/library/${encodeURIComponent(paperId)}`, { method: 'DELETE' })
 }

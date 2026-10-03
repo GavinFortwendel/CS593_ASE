@@ -1,6 +1,7 @@
 import type { LibraryPaper } from '../types'
 import PaperCard from './PaperCard'
 import { SkeletonCard } from './Results'
+import UploadPdf from './UploadPdf'
 
 export type LibraryStatus = 'loading' | 'success' | 'error'
 
@@ -10,9 +11,10 @@ interface Props {
   error: unknown
   onRetry: () => void
   onRemove: (paperId: string) => Promise<void>
+  onUpload: (file: File) => Promise<void>
 }
 
-export default function LibraryView({ status, papers, error, onRetry, onRemove }: Props) {
+export default function LibraryView({ status, papers, error, onRetry, onRemove, onUpload }: Props) {
   if (status === 'loading') {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Loading library">
@@ -41,14 +43,18 @@ export default function LibraryView({ status, papers, error, onRetry, onRemove }
 
   if (papers.length === 0) {
     return (
-      <p className="mt-12 text-center text-slate-500">
-        Your library is empty. Save papers from search results.
-      </p>
+      <section>
+        <UploadPdf onUpload={onUpload} />
+        <p className="mt-12 text-center text-slate-500">
+          Your library is empty. Save papers from search results or upload a PDF.
+        </p>
+      </section>
     )
   }
 
   return (
     <section>
+      <UploadPdf onUpload={onUpload} />
       <p className="mb-3 text-sm text-slate-500">
         {papers.length} saved {papers.length === 1 ? 'paper' : 'papers'}
       </p>

@@ -12,7 +12,8 @@ function formatAuthors(authors: string[]): string {
 }
 
 interface Props {
-  paper: Paper
+  // `source` is only present on library papers (LibraryPaper); search results omit it.
+  paper: Paper & { source?: string }
   saved: boolean
   onSave?: () => Promise<void>
   onRemove?: () => Promise<void>
@@ -24,6 +25,10 @@ export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
   const [actionError, setActionError] = useState<string | null>(null)
   const isLong = (paper.abstract?.length ?? 0) > LONG_ABSTRACT_CHARS
   const action = saved ? onRemove : onSave
+  // Uploaded PDFs have best-effort metadata and no external page or hosted PDF, so never link them.
+  const isUpload = paper.source === 'upload'
+  const url = isUpload ? null : paper.url
+  const pdfUrl = isUpload ? null : paper.pdf_url
 
   async function handleToggleSave() {
     if (!action) return
@@ -41,9 +46,9 @@ export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg leading-snug font-semibold text-slate-900">
-        {paper.url ? (
+        {url ? (
           <a
-            href={paper.url}
+            href={url}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-indigo-600 hover:underline"
@@ -77,10 +82,17 @@ export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
           )}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-slate-400 italic">No abstract available.</p>
+        <p className="mt-3 text-sm text-slate-400 italic">
+          {isUpload ? 'No abstract detected in this PDF.' : 'No abstract available.'}
+        </p>
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        {paper.source === 'upload' && (
+          <span className="rounded-md bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+            Uploaded PDF
+          </span>
+        )}
         {action && (
           <button
             type="button"
@@ -95,9 +107,9 @@ export default function PaperCard({ paper, saved, onSave, onRemove }: Props) {
             {busy ? (saved ? 'Removing…' : 'Saving…') : saved ? 'Saved ✓ · Remove' : 'Save to Library'}
           </button>
         )}
-        {paper.pdf_url && (
+        {pdfUrl && (
           <a
-            href={paper.pdf_url}
+            href={pdfUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
