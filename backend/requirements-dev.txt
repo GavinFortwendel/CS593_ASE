@@ -1,0 +1,11 @@
+# Test-only dependencies. Install with: pip install -r backend/requirements-dev.txt
+# Pulls in the app's runtime requirements first so a fresh venv gets everything.
+-r ../requirements.txt
+
+pytest
+pytest-cov
+pytest-mock
+pytest-asyncio
+# Sets env vars from pytest.ini before any test module (and backend.config) is imported.
+pytest-env
+httpx

@@ -1,0 +1,8 @@
+[run]
+branch = True
+# Tests live inside the backend package, so keep them out of the coverage numbers.
+omit =
+    */tests/*
+
+[report]
+show_missing = True

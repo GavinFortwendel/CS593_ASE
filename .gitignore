@@ -10,5 +10,10 @@ venv/
 *.sqlite
 *.db
 
+# Test coverage output
+coverage/
+htmlcov/
+.coverage
+
 # Claude Code internal files
 .claude/
