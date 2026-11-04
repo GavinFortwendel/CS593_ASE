@@ -81,17 +81,25 @@ describe('LibraryView', () => {
     }
   })
 
-  it('removes a paper by id', () => {
+  it('removes a paper by id', async () => {
     const papers = [makeLibraryPaper({ paper_id: 'a' }), makeLibraryPaper({ paper_id: 'b' })]
     const { props } = renderLibrary({ papers })
-    fireEvent.click(within(screen.getAllByRole('article')[1]).getByRole('button', { name: 'Saved ✓ · Remove' }))
+    const second = screen.getAllByRole('article')[1]
+
+    fireEvent.click(within(second).getByRole('button', { name: 'Saved ✓ · Remove' }))
+
     expect(props.onRemove).toHaveBeenCalledExactlyOnceWith('b')
+    // The parent drops the paper from `papers`; this view only waits for the call to finish.
+    expect(await within(second).findByRole('button', { name: 'Saved ✓ · Remove' })).toBeEnabled()
+    expect(within(second).queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('passes uploads through to the handler', () => {
+  it('passes uploads through to the handler', async () => {
     const { props, container } = renderLibrary()
     const file = pdfFile()
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } })
     expect(props.onUpload).toHaveBeenCalledExactlyOnceWith(file)
+    expect(screen.getByText('Extracting text…')).toBeInTheDocument()
+    expect(await screen.findByText('Upload a PDF')).toBeInTheDocument()
   })
 })

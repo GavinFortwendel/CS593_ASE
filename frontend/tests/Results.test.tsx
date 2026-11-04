@@ -63,7 +63,7 @@ describe('Results', () => {
     expect(within(newCard).getByRole('button', { name: 'Save to Library' })).toBeInTheDocument()
   })
 
-  it('saves the clicked paper and removes saved ones by id', () => {
+  it('saves the clicked paper and removes saved ones by id', async () => {
     const papers = [makePaper({ paper_id: 'saved' }), makePaper({ paper_id: 'new' })]
     const props = renderResults({ data: makeSearchResponse(papers), savedIds: new Set(['saved']) })
 
@@ -72,6 +72,11 @@ describe('Results', () => {
 
     expect(props.onSave).toHaveBeenCalledExactlyOnceWith(papers[1])
     expect(props.onRemove).toHaveBeenCalledExactlyOnceWith('saved')
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Removing…' })).toBeDisabled()
+    // Both calls settle; savedIds is owned by the parent, so the labels return to their old state.
+    expect(await screen.findByRole('button', { name: 'Save to Library' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'Saved ✓ · Remove' })).toBeEnabled()
   })
 
   describe('errors', () => {

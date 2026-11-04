@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../src/api'
 import UploadPdf from '../src/components/UploadPdf'
@@ -13,6 +13,15 @@ function setup(onUpload = vi.fn().mockResolvedValue(undefined)) {
   const choose = (file: File) => fireEvent.change(input, { target: { files: [file] } })
   return { onUpload, input, dropZone, choose }
 }
+
+/** Waits until the upload has finished and the drop zone is idle again. */
+async function waitForIdle(dropZone: HTMLElement) {
+  await waitFor(() => expect(dropZone).toHaveAttribute('aria-disabled', 'false'))
+  expect(screen.getByText('Upload a PDF')).toBeInTheDocument()
+}
+
+const HIGHLIGHT = ['border-indigo-400', 'bg-indigo-50']
+const IDLE = ['border-slate-300', 'bg-white']
 
 describe('UploadPdf', () => {
   it('shows the idle prompt and accepts only PDFs in the file picker', () => {
@@ -46,11 +55,12 @@ describe('UploadPdf', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('uploads a dropped PDF', () => {
+  it('uploads a dropped PDF', async () => {
     const { dropZone, onUpload } = setup()
     const file = pdfFile()
     fireEvent.drop(dropZone, { dataTransfer: { files: [file] } })
     expect(onUpload).toHaveBeenCalledExactlyOnceWith(file)
+    await waitForIdle(dropZone)
   })
 
   it('ignores drops and clicks while an upload is running', () => {
@@ -79,10 +89,12 @@ describe('UploadPdf', () => {
   it.each([
     ['PAPER.PDF', ''], // some systems report no MIME type
     ['download', 'application/pdf'],
-  ])('accepts %s (type %j) as a PDF', (name, type) => {
-    const { choose, onUpload } = setup()
+  ])('accepts %s (type %j) as a PDF', async (name, type) => {
+    const { choose, onUpload, dropZone } = setup()
     choose(pdfFile(name, type))
     expect(onUpload).toHaveBeenCalledOnce()
+    await waitForIdle(dropZone)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('rejects files over 20 MB before uploading', () => {
@@ -92,10 +104,12 @@ describe('UploadPdf', () => {
     expect(onUpload).not.toHaveBeenCalled()
   })
 
-  it('accepts a file of exactly 20 MB', () => {
-    const { choose, onUpload } = setup()
+  it('accepts a file of exactly 20 MB', async () => {
+    const { choose, onUpload, dropZone } = setup()
     choose(pdfFile('limit.pdf', 'application/pdf', 20 * MB))
     expect(onUpload).toHaveBeenCalledOnce()
+    await waitForIdle(dropZone)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it.each([
@@ -109,6 +123,75 @@ describe('UploadPdf', () => {
     choose(pdfFile())
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
     expect(screen.getByText('Upload a PDF')).toBeInTheDocument() // back to idle, can retry
+  })
+
+  describe('drag and drop highlighting', () => {
+    it('highlights the drop zone while a file is dragged over it', () => {
+      const { dropZone } = setup()
+      expect(dropZone).toHaveClass(...IDLE)
+
+      fireEvent.dragOver(dropZone)
+      expect(dropZone).toHaveClass(...HIGHLIGHT)
+      expect(dropZone).not.toHaveClass(...IDLE)
+
+      fireEvent.dragLeave(dropZone)
+      expect(dropZone).toHaveClass(...IDLE)
+      expect(dropZone).not.toHaveClass(...HIGHLIGHT)
+    })
+
+    it('prevents the browser default on dragover so drops are delivered', () => {
+      const { dropZone } = setup()
+      // fireEvent returns false when a handler called preventDefault().
+      expect(fireEvent.dragOver(dropZone)).toBe(false)
+    })
+
+    it('prevents the browser from opening the dropped file', async () => {
+      const { dropZone } = setup()
+      expect(fireEvent.drop(dropZone, { dataTransfer: { files: [pdfFile()] } })).toBe(false)
+      await waitForIdle(dropZone)
+    })
+
+    it('removes the highlight when the file is dropped', async () => {
+      const { dropZone } = setup()
+      fireEvent.dragOver(dropZone)
+      fireEvent.drop(dropZone, { dataTransfer: { files: [pdfFile()] } })
+      expect(dropZone).toHaveClass(...IDLE)
+      await waitForIdle(dropZone)
+    })
+
+    it('removes the highlight and shows an error when a non-PDF is dropped', () => {
+      const { dropZone, onUpload } = setup()
+      fireEvent.dragOver(dropZone)
+      fireEvent.drop(dropZone, { dataTransfer: { files: [pdfFile('photo.jpg', 'image/jpeg')] } })
+      expect(dropZone).toHaveClass(...IDLE)
+      expect(screen.getByRole('alert')).toHaveTextContent('Please choose a PDF file.')
+      expect(onUpload).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when the drop carries no file', () => {
+      const { dropZone, onUpload } = setup()
+      fireEvent.dragOver(dropZone)
+      fireEvent.drop(dropZone, { dataTransfer: { files: [] } })
+      expect(dropZone).toHaveClass(...IDLE)
+      expect(onUpload).not.toHaveBeenCalled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('still highlights during an upload, but ignores the drop', async () => {
+      const pending = deferred<void>()
+      const { choose, dropZone, onUpload } = setup(vi.fn(() => pending.promise))
+      choose(pdfFile('first.pdf'))
+
+      fireEvent.dragOver(dropZone)
+      expect(dropZone).toHaveClass(...HIGHLIGHT)
+      // The default is still prevented: a drop mid-upload must not navigate the tab to the PDF.
+      expect(fireEvent.drop(dropZone, { dataTransfer: { files: [pdfFile('second.pdf')] } })).toBe(false)
+      expect(dropZone).toHaveClass(...IDLE)
+      expect(onUpload).toHaveBeenCalledOnce()
+
+      pending.resolve()
+      await waitForIdle(dropZone)
+    })
   })
 
   it('clears the previous error on the next attempt', async () => {
