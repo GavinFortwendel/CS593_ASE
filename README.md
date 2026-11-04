@@ -34,7 +34,12 @@ backend/
   services/pdf_extract.py    PDF text + heuristic metadata extraction (pypdf)
   services/paper_text.py     Gets a paper's full text (fetches open-access PDFs on demand)
   services/llm.py            OpenAI prompts for summaries and Q&A
+  tests/                     Pytest suite (see Testing)
+  pytest.ini, .coveragerc    Test and coverage configuration
+  requirements-dev.txt       Test dependencies
 frontend/
+  tests/                     Vitest suite (see Testing)
+  vite.config.ts             Also holds the Vitest and coverage configuration
   src/
     App.tsx                  Page layout, Search/Library tabs, search + library state
     api.ts                   Backend client (fetch wrapper, ApiError)
@@ -90,6 +95,66 @@ The frontend calls the backend at `http://localhost:8000` by default. To point i
 | DELETE | `/api/library/{paper_id}` | Remove a saved paper. `204` on success, `404` if not saved |
 
 AI endpoint errors: `404` paper not in library, `422` no full text available, `503` OpenAI key missing/invalid, `429` OpenAI rate limit, `502` other OpenAI failures.
+
+## Testing (HW2)
+
+The automated test suites live in [`backend/tests/`](backend/tests) (Pytest) and [`frontend/tests/`](frontend/tests) (Vitest + React Testing Library). Both run fully offline: no API keys, no running servers, and no network access are needed.
+
+### Install test dependencies
+
+From the repo root, with the virtual environment from [Setup](#setup) activated:
+
+```bash
+pip install -r backend/requirements-dev.txt   # pytest, pytest-cov, pytest-mock, pytest-asyncio, pytest-env, httpx
+npm install --prefix frontend                 # installs vitest, @testing-library/*, jsdom, @vitest/coverage-v8
+```
+
+### Run the backend tests
+
+Run Pytest **from the `backend/` directory** so it picks up `backend/pytest.ini` and `backend/.coveragerc`:
+
+```bash
+cd backend
+pytest                                   # all tests, with line + branch coverage
+pytest --no-cov                          # faster, without coverage
+pytest tests/test_library_router.py -v   # a single file, verbose
+```
+
+Coverage is printed in the terminal (with the missing line numbers) and written as HTML to `backend/htmlcov/index.html`.
+
+### Run the frontend tests
+
+From the repo root:
+
+```bash
+npm test --prefix frontend           # watch mode
+npm run coverage --prefix frontend   # single run with coverage
+```
+
+Coverage is printed in the terminal and written to `frontend/coverage/` (`index.html` for the HTML report, `coverage-summary.json` for the totals).
+
+### Expected results
+
+| Suite | Tests | Result | Coverage |
+| --- | --- | --- | --- |
+| Backend | 183 | 178 passed, **5 failed (intentional)** | 100% statements, 100% branches |
+| Frontend | 137 | 137 passed | 100% lines, 95.5% branches |
+
+The **5 backend failures are intentional**. Each test expects the correct behavior and fails because it detects a real bug in the application. The bugs are documented, not fixed, for the fault-detection part of the assignment:
+
+| Bug | Failing test(s) | Incorrect behavior |
+| --- | --- | --- |
+| 1. Malformed `pdf_url` causes a 500 | `test_library_router.py::test_summarize_with_malformed_pdf_url_is_a_readable_error` | A saved paper whose `pdf_url` contains a control character (e.g. a newline) makes summarize/Q&A crash with an unhandled `500` instead of a readable `422`. `httpx.InvalidURL` isn't a subclass of `httpx.HTTPError`, so `paper_text._download_pdf` doesn't catch it. Because the 500 has no CORS headers, the browser shows "Cannot reach the server". |
+| 2. "A, B and C" author lines give no authors | `test_pdf_extract.py::test_authors_from_text[commas-and]` | `_authors_from_text` promises to handle "A, B and C", but its check for lowercase prose words treats "and" as prose and stops before splitting, so it returns `[]`. |
+| 3. Odd word counts lose an author | `test_pdf_extract.py::test_split_names_never_drops_a_word_with_odd_word_counts` (3 cases) | `_split_names` drops the last word of a long author line with an odd number of words (e.g. "Juan Carlos Niebles Fei-Fei Li" loses "Li"). |
+
+### How the tests stay isolated
+
+- **Database:** `pytest.ini` uses `pytest-env` to set `DATABASE_URL=sqlite:///:memory:` before the app is imported, so `backend/library.db` is never opened. `tests/conftest.py` gives each test a fresh in-memory database through FastAPI's `dependency_overrides`. It uses SQLAlchemy's `StaticPool` so every worker thread shares one connection. `tests/test_database.py` also fails if `library.db` is modified.
+- **API keys:** `OPENAI_API_KEY` and `SEMANTIC_SCHOLAR_API_KEY` are blanked in `pytest.ini`, so keys in your `.env` are never used.
+- **External services:** Semantic Scholar, publisher PDF downloads and OpenAI are replaced with scripted fakes (`tests/helpers.py`). An automatic fixture makes any real network request fail the test.
+- **Test PDFs** are generated in memory by `tests/pdf_factory.py`; no sample files are needed.
+- **Frontend:** component tests mock `src/api.ts` with `vi.mock`. `tests/api.test.ts` tests `api.ts` itself against a fake global `fetch`. `tests/setup.ts` fails any test that triggers a React `act()` warning.
 
 ## Notes
 
