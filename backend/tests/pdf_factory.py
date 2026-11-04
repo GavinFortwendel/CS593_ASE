@@ -19,11 +19,12 @@ def make_pdf(
     *,
     title: str | None = None,
     author: str | None = None,
-    creation_date: datetime | None = None,
+    creation_date: datetime | str | None = None,
 ) -> bytes:
     """Return PDF bytes with one text line per list entry on each page.
 
     An empty inner list gives a page with no text (like a scanned, image-only page).
+    A string `creation_date` is written verbatim, to build PDFs with malformed dates.
     """
     objects: list[bytes] = []  # objects[i] is object number i + 1
 
@@ -60,7 +61,9 @@ def make_pdf(
         info_entries.append(b"/Title (%s)" % _escape(title).encode("latin-1"))
     if author is not None:
         info_entries.append(b"/Author (%s)" % _escape(author).encode("latin-1"))
-    if creation_date is not None:
+    if isinstance(creation_date, str):
+        info_entries.append(b"/CreationDate (%s)" % _escape(creation_date).encode("latin-1"))
+    elif creation_date is not None:
         info_entries.append(b"/CreationDate (D:%s)" % creation_date.strftime("%Y%m%d%H%M%S").encode())
     info = add(b"<< %s >>" % b" ".join(info_entries)) if info_entries else None
 
